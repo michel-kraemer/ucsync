@@ -1,3 +1,14 @@
+// ucsync
+// Copyright (c) 2010 Michel Kraemer
+//
+// This file is released under the terms of the MIT License.
+// It is distributed in the hope that it will be useful, but WITHOUT ANY
+// WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+// FOR A PARTICULAR PURPOSE. See the MIT License for more details.
+//
+// You should have received a copy of the MIT License along with
+// this file; if not, goto http://www.michel-kraemer.de/en/mit-license
+
 import java.io._
 import java.util.Properties
 import scala.annotation.tailrec
@@ -6,6 +17,12 @@ import scala.io.Source
 import scala.util.control.Exception._
 import ch.ethz.ssh2._
 
+/**
+ * Executes a remote command
+ * @param cmd the command to execute
+ * @param sess the SSH session
+ * @return the command's output
+ */
 def exec(cmd: String)(implicit sess: Session) = {
   sess.execCommand(cmd)
   val stdout = new StreamGobbler(sess.getStdout())
@@ -22,18 +39,44 @@ def exec(cmd: String)(implicit sess: Session) = {
   sb.toString
 }
 
+/**
+ * Recursively lists a directory's contents
+ * @param dir the directory
+ * @return a list of all files in the given directory and all its
+ * subdirectories
+ */
 def findFiles(dir: File): List[File] = {
   val files = dir.listFiles()
   val subdirs = files filter { _.isDirectory } flatMap { findFiles }
   (files.toList filterNot { _.isDirectory }) ++ subdirs
 }
 
-def askForCopy(files: List[String], t: String) =
-  askFor(files, t, "Copy new")
+/**
+ * Asks the user if the given files should be copied from the
+ * given source
+ * @param files the files to copy
+ * @param src the source ("local" or "remote")
+ * @return a list of files the user confirmed to copy
+ */
+def askForCopy(files: List[String], src: String) =
+  askFor(files, src, "Copy new")
 
+/**
+ * Asks the user if the given files should be deleted
+ * @param files the files to delete
+ * @param t the location of the files ("local" or "remote")
+ * @return a list of files the user confirmed to delete
+ */
 def askForDelete(files: List[String], t: String) =
   askFor(files, t, "Delete")
 
+/**
+ * Asks the user something for every given file
+ * @param files the files to ask for
+ * @param t the location of the files ("local" or "remote")
+ * @param pred the "something" to ask (e.g. "copy" or "delete")
+ * @return a list of all files the user confirmed
+ */
 def askFor(files: List[String], t: String, pred: String) = {
   files flatMap { f =>
     @tailrec def ask(): Boolean = {
@@ -48,6 +91,12 @@ def askFor(files: List[String], t: String, pred: String) = {
   }
 }
 
+/**
+ * Converts a value to a SI unit string. Adds the respective suffix
+ * (e.g. "M", "k" or "bytes")
+ * @param pos the value to convert
+ * @return the converted value
+ */
 def toSI(pos: Long) = {
   import java.util.Locale
   
@@ -66,6 +115,17 @@ def toSI(pos: Long) = {
     t + "bytes"
 }
 
+/**
+ * Prints a ASCII progress bar
+ * @param pos the current progress
+ * @param size the maximum progress
+ * @param blockSize the number of bytes the progress will increase
+ * between two calls to this method (used to calculate the current
+ * speed)
+ * @param lastTime the number of milliseconds since epoch when the
+ * method was called the last time
+ * @return the current number of milliseconds since epoch
+ */
 def printProgress(pos: Long, size: Long, blockSize: Long, lastTime: Long) = {
   val width = 40
   val n2 = (pos * width / size).toInt
@@ -78,6 +138,13 @@ def printProgress(pos: Long, size: Long, blockSize: Long, lastTime: Long) = {
   currentTime
 }
 
+/**
+ * Copies the given local files to the remote directory
+ * @param remotepath the remote directory
+ * @param localfilestocopy the list of local files to copy
+ * @param client the SFTP client used to copy files to the remote host
+ * @param conn the respective SSH connection
+ */
 def copyLocalFiles(remotepath: String, localfilestocopy: List[String])
   (implicit client: SFTPv3Client, conn: Connection) {
   for (file <- localfilestocopy) {
@@ -85,6 +152,7 @@ def copyLocalFiles(remotepath: String, localfilestocopy: List[String])
     val lastSlash = file.lastIndexOf('/')
     val localdirname = if (lastSlash > 0) file.substring(0, lastSlash) else ""
     
+    //make remote directory
     implicit val sess = conn.openSession()
     try {
       exec("mkdir -p \"" + remotepath + localdirname + "\"")
@@ -96,6 +164,7 @@ def copyLocalFiles(remotepath: String, localfilestocopy: List[String])
     val is = new FileInputStream(localfile)
     val handle = client.createFile(remotepath + file)
     
+    //copy file to remote
     val size = localfile.length
     val start = System.currentTimeMillis
     val block = 32768
@@ -118,10 +187,18 @@ def copyLocalFiles(remotepath: String, localfilestocopy: List[String])
   }
 }
 
+/**
+ * Copies the given remote files to the local directory
+ * @param remotepath the remote directory
+ * @param remotefilestocopy the list of remote files to copy
+ * @param client the SFTP client used to copy files to the remote host
+ */
 def copyRemoteFiles(remotepath: String, remotefilestocopy: List[String])
   (implicit client: SFTPv3Client) {
   for (file <- remotefilestocopy) {
     println("Copying " + file + " from remote...")
+    
+    //create local directory
     val localdir = new File(file.substring(0, file.lastIndexOf('/')))
     if (!localdir.exists()) {
       if (!localdir.mkdirs()) {
@@ -129,10 +206,12 @@ def copyRemoteFiles(remotepath: String, remotefilestocopy: List[String])
         return
       }
     }
+    
     val os = new FileOutputStream(file)
     val handle = client.openFileRO(remotepath + file)
     val attrs = client.fstat(handle)
     
+    //copy remote file
     val size = if (attrs.size != null) attrs.size.longValue else 1
     val start = System.currentTimeMillis
     val block = 32768
@@ -156,6 +235,10 @@ def copyRemoteFiles(remotepath: String, remotefilestocopy: List[String])
   }
 }
 
+/**
+ * Deletes the given local files
+ * @param localfilestodelete the files to delete
+ */
 def deleteLocalFiles(localfilestodelete: List[String]) {
   for (file <- localfilestodelete) {
     println("Deleting local file " + file + "...")
@@ -165,6 +248,12 @@ def deleteLocalFiles(localfilestodelete: List[String]) {
   }
 }
 
+/**
+ * Deletes the given remote files
+ * @param remotepath the remote directory
+ * @param remotefilestodelete the remote files to delete
+ * @param client the SFTP client used to delete files
+ */
 def deleteRemoteFiles(remotepath: String, remotefilestodelete: List[String])
   (implicit client: SFTPv3Client) {
   for (file <- remotefilestodelete) {
@@ -173,9 +262,22 @@ def deleteRemoteFiles(remotepath: String, remotefilestodelete: List[String])
   }
 }
 
+/**
+ * Removes entries from <code>files</code> that start with one of the
+ * prefixes in <code>ignoreFiles</code>
+ * @param files the list to filter
+ * @param ignoreFiles the list of prefixes
+ * @return the filtered list
+ */
 def filterIgnoreFiles(files: List[String], ignoreFiles: List[String]) =
   files filterNot { n => ignoreFiles exists { n.startsWith } }
 
+/**
+ * Loads a file that contains a list of strings
+ * @param cacheFileName the file to load
+ * @return the list of strings stored in the file (one string per line)
+ * or an empty list if the files does not exist
+ */
 def loadCacheFile(cacheFileName: String) = {
   val filesCache = new File(cacheFileName)
   if (filesCache.exists())
@@ -184,6 +286,11 @@ def loadCacheFile(cacheFileName: String) = {
     List.empty[String]
 }
 
+/**
+ * Saves the given list of strings to a file (one string per line)
+ * @param cacheFileName the file to save the strings to
+ * @param files the list of strings to save
+ */
 def saveCacheFile(cacheFileName: String, files: List[String]) {
   val fos = new FileOutputStream(new File(cacheFileName))
   val bw = new BufferedWriter(new OutputStreamWriter(fos))
@@ -198,6 +305,7 @@ val configFileName = configDir + "/" + "config.properties"
 val localFilesCacheFileName = configDir + "/" + ".localfiles"
 val remoteFilesCacheFileName = configDir + "/" + ".remotefiles"
 
+//load main configuration file from the current directory
 val configFile = new File(configFileName)
 if (!configFile.exists) {
   println("Configuration file " + configFileName + " does not exist")
@@ -207,6 +315,7 @@ if (!configFile.exists) {
 val props = new Properties()
 props.load(new FileInputStream(configFile))
 
+//get properties from configuration file
 val host = props.getProperty("host", "")
 if (host.isEmpty) {
   println(configFileName + " does not declare a remote host")
@@ -229,12 +338,14 @@ val port = try { strPort.toInt } catch { case _: NumberFormatException =>
   System.exit(1)
 }
 
-val ignoreFiles = List(".ucsync") ++ (props.propertyNames map { _.toString } filter
+val ignoreFiles = List(configDir) ++ (props.propertyNames map { _.toString } filter
   { _.startsWith("ignore") } map { k => props.getProperty(k) }).toList
 
+//load cached file lists
 val alloldlocalfiles = loadCacheFile(localFilesCacheFileName)
 val alloldremotefiles = loadCacheFile(remoteFilesCacheFileName)
 
+//ask user for password if necessary
 println("Connecting to ssh://" + (if (user.isEmpty) "" else user + "@") + host + ":" + port)
 val pass = if (!user.isEmpty) {
   print("Enter password: ")
@@ -243,10 +354,11 @@ val pass = if (!user.isEmpty) {
   ""
 }
 
-//get remote files
+//connect to remote host
 implicit val conn = new Connection("spamihilator.com", 1302)
 conn.connect()
 try {
+  //authenticate
   val authenticated = if (!user.isEmpty) {
     conn.authenticateWithPassword(user, pass)
   } else {
@@ -254,6 +366,7 @@ try {
   }
   
   if (authenticated) {
+    //read list of remote files (remove ignored ones)
     implicit val sess = conn.openSession()
     print("Reading remote files... ")
     val allremotefiles = try {
@@ -264,11 +377,13 @@ try {
     val remotefiles = filterIgnoreFiles(allremotefiles, ignoreFiles)
     println(remotefiles.size + " files.")
     
+    //read list of local files (remove ignored ones)
     print("Reading local files... ")
     val alllocalfiles = findFiles(new File(".")) map { _.getPath.substring(2).replaceAll("\\\\", "/") }
     val localfiles = filterIgnoreFiles(alllocalfiles, ignoreFiles)
     println(localfiles.size + " files.")
     
+    //calculate files to copy and files to delete
     println("Building file list ...")
     val oldremotefiles = filterIgnoreFiles(alloldremotefiles, ignoreFiles)
     val oldlocalfiles = filterIgnoreFiles(alloldlocalfiles, ignoreFiles)
@@ -281,6 +396,7 @@ try {
       (localfiles contains a) || (deletedlocalfiles contains a)
     }
     
+    //ask user what we should do
     val localfilestocopy = askForCopy(newremotefiles, "remote")
     val remotefilestocopy = askForCopy(newlocalfiles, "local")
     val localfilestodelete = askForDelete(deletedremotefiles, "local")
@@ -291,6 +407,7 @@ try {
         localfilestodelete.isEmpty && remotefilestodelete.isEmpty) {
       println("Everything up to date.")
     } else {
+      //copy files and delete files
       implicit val client = new SFTPv3Client(conn)
       try {
         copyLocalFiles(path, localfilestocopy)
@@ -302,6 +419,7 @@ try {
       }
     }
     
+    //cache current file lists
     val localfilestosave = (alllocalfiles filterNot { localfilestodelete.contains }) ++ remotefilestocopy
     val remotefilestosave = (allremotefiles filterNot { remotefilestodelete.contains }) ++ localfilestocopy
     saveCacheFile(localFilesCacheFileName, localfilestosave)
