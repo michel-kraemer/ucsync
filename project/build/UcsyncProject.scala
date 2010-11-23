@@ -55,6 +55,7 @@ class UcsyncProject(info: ProjectInfo) extends DefaultProject(info) {
     val distZipPath = outputPath / distZipName
     
     val resources = "resources".*** --- "resources"
+    val licenses = ((".": Path) * "LICENSE*") +++ "NOTICE"
     
     resources.get.map { r =>
       //copy lanucher scripts and replace jar file within them
@@ -71,6 +72,7 @@ class UcsyncProject(info: ProjectInfo) extends DefaultProject(info) {
     } find(_ != None) getOrElse
     FileUtilities.copyFlat(dependencies.get, distLibPath, log).left.toOption orElse
     FileUtilities.copyFlat(outputJar.get, distPath, log).left.toOption orElse
+    FileUtilities.copyFlat(licenses.get, distPath, log).left.toOption orElse
     FileUtilities.zip((distPath ##).get, distZipPath, true, log)
   } dependsOn(packageDist)
 }

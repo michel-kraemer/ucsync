@@ -1,0 +1,14 @@
+ucsync
+------
+
+Copyright (c) 2010 Michel Kraemer
+Licensed under the MIT license (see LICENSE)
+
+
+This product includes the following software components:
+
+Scala library
+Copyright (c) 2002-2008 EPFL, Lausanne (see LICENSE_Scala)
+
+Ganymed SSH-2 for Java
+Copyright (c) 2006 - 2010 Christian Plattner (see LICENSE_Ganymed)
