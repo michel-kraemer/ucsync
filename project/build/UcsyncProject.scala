@@ -54,6 +54,21 @@ class UcsyncProject(info: ProjectInfo) extends DefaultProject(info) {
     val distZipName = artifactBaseName + ".zip"
     val distZipPath = outputPath / distZipName
     
+    val resources = "resources".*** --- "resources"
+    
+    resources.get.map { r =>
+      //copy lanucher scripts and replace jar file within them
+      FileUtilities.readString(r.asFile, log) match {
+        case Left(s) =>
+          //error
+          Some(s)
+        case Right(s) =>
+          //replace @OUTPUTJAR@ by the name of the jar file and
+          //write script to dist directory
+          val ns = s.replaceAll("@OUTPUTJAR@", outputJar.name)
+          FileUtilities.write((distPath / r.name).asFile, ns, log)
+      }
+    } find(_ != None) getOrElse
     FileUtilities.copyFlat(dependencies.get, distLibPath, log).left.toOption orElse
     FileUtilities.copyFlat(outputJar.get, distPath, log).left.toOption orElse
     FileUtilities.zip((distPath ##).get, distZipPath, true, log)
