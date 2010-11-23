@@ -38,8 +38,8 @@ class UcsyncProject(info: ProjectInfo) extends DefaultProject(info) {
     val scalaLibraryJar = mainDependencies.scalaLibrary.get.toList
     mcp = Some("lib/" + scalaLibraryJar(0).name + " lib/" + ganymedJar)
     None
-  }
-  lazy val packageDist = `package` dependsOn preparePackageDist dependsOn compile
+  } dependsOn compile
+  lazy val packageDist = `package` dependsOn preparePackageDist
   
   //create zip file for distribution
   lazy val dist = task {
