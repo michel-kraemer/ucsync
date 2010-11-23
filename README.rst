@@ -21,19 +21,16 @@ want more control, consider using another tool like
 Usage
 -----
 
-#. Download `Ganymed SSH-2 for Java <http://www.cleondris.ch/opensource/ssh2/>`_
-   (at least build 250) and unzip the JAR file
+#. `Download <https://github.com/michel-kraemer/ucsync/downloads>`_
+   the distribution zip file
+#. Unpack the zip file to any directory. Optionally add this directory
+   to your path
 #. Go to the local directory you want to synchronize
 #. Create a new sub-directory called ``.ucsync``
 #. Create the main configuration file ``.ucsync/config.properties`` (see
    below for all configuration options)
-#. Run the following command from the local directory you want to
-   synchronize::
-
-     scala -cp ganymed-ssh2-build250.jar ucsync.scala
-
-   (Of course, you may have to add the path where you put the Ganymed
-   jar file and ``ucsync.scala``)
+#. Run the ``ucsync.bat`` or ``ucsync.sh`` from the local directory you
+   want to synchronize
 #. Let ucsync do the rest.
 
 Configuration options (.ucsync/config.properties)
@@ -72,5 +69,3 @@ TODO
 ----
 
 - Compare files by size, date or even content
-- Compile a jar that contains everything needed to run the program and
-  put that into the project's download section
